@@ -31,7 +31,8 @@ String LiChessApi::createGameWithBot() {
 }
 
 String LiChessApi::cancelGameWithBot(String uid) {
-    CANCEL_GAME.replace("{challengeId}", uid);
+    String CANCEL_GAME_COPY = String(CANCEL_GAME);
+    CANCEL_GAME_COPY.replace("{challengeId}", uid);
     http.begin(CANCEL_GAME); 
     Serial.println(CANCEL_GAME);
     http.addHeader("Authorization", "Bearer " + token);
@@ -58,9 +59,12 @@ String LiChessApi::cancelGameWithBot(String uid) {
 
 // method that sends a players move to lichess server
 String LiChessApi::makeMove(String uid, String move) {
-    MAKE_A_MOVE.replace("{gameId}", uid);
-    MAKE_A_MOVE.replace("{move}", move);
-    http.begin(MAKE_A_MOVE);
+    String MAKE_A_MOVE_COPY = MAKE_A_MOVE;
+
+    MAKE_A_MOVE_COPY.replace("{gameId}", uid);
+    MAKE_A_MOVE_COPY.replace("{move}", move);
+    Serial.println(MAKE_A_MOVE);
+    http.begin(MAKE_A_MOVE_COPY);
     http.addHeader("Authorization", "Bearer " + token);
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
     http.addHeader("charset", "utf-8");
