@@ -21,7 +21,7 @@ class LiChessApi {
 
         HTTPClient http;
 
-        String token = "lip_IidE4DDeLZ84Oiv4DKyd";
+        String token = /*"lip_IidE4DDeLZ84Oiv4DKyd"*/ "lip_24oJJxlBlYlACB4y21Zc";
 
     // TODO
         String CREATE_GAME_WITH_PLAYER_LINK = "https://lichess.org/api/account";

@@ -32,6 +32,8 @@ public:
 
     bool end() const;
 
+    int size();
+
 private:
     bool initialized;
 };
@@ -131,4 +133,16 @@ template<typename T>
 bool LinkedList<T>::end() const
 {
     return !initialized;
+}
+
+template<typename T>
+int LinkedList<T>::size() 
+{
+    int i = 0;
+    auto* result = this;
+    while(result->next == nullptr) {
+        i++;
+        result = result->next;
+    }
+    return i;
 }
