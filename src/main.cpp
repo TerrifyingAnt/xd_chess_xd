@@ -9,6 +9,7 @@
 #include <LiChessApi.h>
 #include <AlfaZeroApi.h>
 #include <Thread.h>
+#include <vector>
 
 
 ChessBoard board;
@@ -25,7 +26,11 @@ String stringMove = "";
 
 String uid = "xd";
 
+ChessMove chessMoveFrom;
+
 LinkedList<byte> figurePossibleMoves;
+
+bool dataChanged = false; // Flag to indicate if there are any changes in data
 
 
 bool gerkonActualFieldData[64]; // хранится актуальное поле с герконов, то есть сюда записывается в реальном времени инфа
@@ -36,6 +41,11 @@ bool gerkonFromShiftRegisters1[16];
 bool gerkonFromShiftRegisters2[16];
 bool gerkonFromShiftRegisters3[16];
 bool gerkonFromShiftRegisters4[16];
+
+bool oldGerkonFromShiftRegisters1[16];
+bool oldGerkonFromShiftRegisters2[16];
+bool oldGerkonFromShiftRegisters3[16];
+bool oldGerkonFromShiftRegisters4[16];
 
 MAX7219 <2, 2, 12, 14, 13> mtrx;   // одна матрица (1х1), пин CS на D5
 
@@ -67,6 +77,8 @@ bool boolPlay = true;
 
 bool needRegisters = false;
 
+bool first = true;
+
 void startGamePlayerComputer(int depth, int maxSteps); // не используется
 int userMove(ChessBoard& board); // функция хода пользователя
 void computerMove(ChessBoard& board, int depth, int maxSteps); // функция в котором происходит связь с апи
@@ -76,8 +88,7 @@ void generateActualFieldFromGerkons(); // создание актуальног�
 void ledBoard(); // подсветка доски исходя из текущего состояния доски
 void shiftRegisters(); // функция получения информации с герконов
 void showPossibleMoves(); // функция показания возможных ходов (не работает пока, там ошибка по индексу (index out of bound которая))
-
-
+void startDemoGame(ChessMove* chessMovesList, int size); // функция, которая проигрывает игру по массиву ходов
 
 
 int userMove(ChessBoard& tempBoard)
@@ -115,8 +126,8 @@ int userMove(ChessBoard& tempBoard)
       char y1 = static_cast<char>('1' + (fromInt/8));
       char buffer[] = {x1, y1, '\0'};
       ChessMove bufferChessmove = ChessMove(buffer);
-      figurePossibleMoves = tempBoard.possibleMoves(bufferChessmove.from);
-      //showPossibleMoves();
+      chessMoveFrom = ChessMove(buffer);
+      showPossibleMoves();
     }
     else {
       char new_x1 = static_cast<char>('a' + (fromInt%8));
@@ -155,7 +166,7 @@ int userMove(ChessBoard& tempBoard)
           board.performMove(move);
 
           lastMove = move;
-          ledForFigures(board); // подсветка доски
+          //ledForFigures(board); // подсветка доски
           // запись последнего хода
           for(int i =0; i < 8; i++) {
             for(int j = 0; j < 8; j++)
@@ -218,24 +229,44 @@ void computerMove(ChessBoard& tempBoard)
 }
 
 void shiftRegisters() {
+
+  bool tempDataChanged = false;
+
   digitalWrite(load, LOW);
   digitalWrite(load, HIGH);
+
   
-  bool dataChanged = false; // Flag to indicate if there are any changes in data
-  
-  Serial.print("Data from 1: ");
+  for (int i = 0; i < 16; i++) {
+    oldGerkonFromShiftRegisters1[i] = gerkonFromShiftRegisters1[i];
+    oldGerkonFromShiftRegisters2[i] = gerkonFromShiftRegisters2[i];
+    oldGerkonFromShiftRegisters3[i] = gerkonFromShiftRegisters3[i];
+    oldGerkonFromShiftRegisters4[i] = gerkonFromShiftRegisters4[i];
+  }
+
+  Serial.print("\n\nData from 1: ");
+  int k1 = 0;
+  int k2 = 0;
+  int k3 = 0; 
+  int k4 = 0;
+
   for (int i = 0; i < numBits; i++) {
     int bit = digitalRead(dataPin1);
     if (bit == HIGH) {
       gerkonFromShiftRegisters1[i] = true;
       Serial.print("1");
+      k1++;
     } else {
       Serial.print("0");
       gerkonFromShiftRegisters1[i] = false;
     }
+    if(gerkonFromShiftRegisters1[i] != oldGerkonFromShiftRegisters1[i] && k1 < 16 && k1 > 0) {
+      tempDataChanged = true;
+      k1++;
+    }
     digitalWrite(clockPin, HIGH);
     digitalWrite(clockPin, LOW);
   }
+
 
   Serial.println("");
   Serial.print("Data from 2: ");
@@ -252,12 +283,18 @@ void shiftRegisters() {
       Serial.print("0");
       gerkonFromShiftRegisters2[i] = false;
     }
+    if(gerkonFromShiftRegisters2[i] != oldGerkonFromShiftRegisters2[i] && k2 < 16 && k2 > 0) {
+      tempDataChanged = true;
+      k2++;
+    }
     digitalWrite(clockPin, HIGH);
     digitalWrite(clockPin, LOW);
   }
+
   Serial.println("");
   Serial.print("Data from 3: ");
-    digitalWrite(load, LOW);
+
+  digitalWrite(load, LOW);
   digitalWrite(load, HIGH);
   for (int i = 0; i < numBits; i++) {
     int bit = digitalRead(dataPin3);
@@ -268,11 +305,17 @@ void shiftRegisters() {
       Serial.print("0");
       gerkonFromShiftRegisters3[i] = false;
     }
+    if(gerkonFromShiftRegisters3[i] != oldGerkonFromShiftRegisters3[i] && k3 < 16 && k3 > 0) {
+      tempDataChanged = true;
+      k3++;
+
+    }
     digitalWrite(clockPin, HIGH);
     digitalWrite(clockPin, LOW);
   }
-  Serial.println("");
 
+
+  Serial.println("");
   Serial.print("Data from 4: ");
     digitalWrite(load, LOW);
   digitalWrite(load, HIGH);
@@ -285,15 +328,24 @@ void shiftRegisters() {
       Serial.print("0");
       gerkonFromShiftRegisters4[i] = false;
     }
+    if(gerkonFromShiftRegisters4[i] != oldGerkonFromShiftRegisters4[i]) {
+      k4++;
+      tempDataChanged = true;
+    }
     digitalWrite(clockPin, HIGH);
     digitalWrite(clockPin, LOW);
   }
-    Serial.println("");
-    Serial.println("");
-    digitalWrite(clockPin, HIGH);
-  digitalWrite(clockPin, LOW);
-  generateActualFieldFromGerkons();
-  delay(1000);
+
+
+  if(tempDataChanged) {
+    // check if everything in gerkonFromShiftRegisters is false
+    if(k1 + k2 + k3 + k4 == 2 && (k1 = 1 || k2 == 1 || k3 == 1 || k4 == 1)) {
+      generateActualFieldFromGerkons();   
+      Serial.print("\nxdxdxd\n");
+      dataChanged = true;     
+    }
+  }
+  delay(100);
 }
 
 
@@ -315,7 +367,6 @@ void setup() {
   Serial.begin(9600);
   whitePlays = true;
 
-  Println("Moves are written like 'e2 e4'");
   mtrx.clear();
 
     // Setup 74HC165 connections
@@ -326,9 +377,7 @@ void setup() {
   pinMode(clockPin, OUTPUT);
   pinMode(load, OUTPUT);
 
-  //WiFi.begin("TP-Link_10DC", "37163006");
-  // логин пароль от вайфая
-  WiFi.begin("JG", "xdxdxdxd");
+  WiFi.begin("JG", "xdxdxd");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -350,17 +399,17 @@ void setup() {
     lastStateGerkonFieldData[i] = gerkonActualFieldData[i];
   }
 
-  //possibleMovesThread.onRun(showPossibleMoves);
-  //possibleMovesThread.setInterval(100);
+  possibleMovesThread.onRun(showPossibleMoves);
+  possibleMovesThread.setInterval(100);
   ledBoard();
 
 }
 
 
 void loop() {
-  // if(possibleMovesThread.shouldRun()) {
-  //   possibleMovesThread.run();
-  // }
+  if(possibleMovesThread.shouldRun()) {
+    possibleMovesThread.run();
+  }
   playGame();
 }
 
@@ -376,28 +425,8 @@ void ledForFigures(ChessBoard& tempBoard) {
   mtrx.update();
 }
 
-void showPossibleMoves() {
-  // int possibleMovesCount = figurePossibleMoves.size(); 
-  // if(possibleMovesCount != 0) {     
-  //     int* tempLeds = new int[possibleMovesCount * 4];
-  //     for(int j = 0; j < 4; j++){
-  //       for(int i = 0; i < possibleMovesCount; i++) {
-  //         tempLeds[i] = figurePossibleMoves.get(i)->value * 4 + j;
-  //       }
-  //     }
-  //   }
-  //   for(int j = 0; j < 4; j++){
-  //     for (int i = (possibleMovesCount / 4) * j; i < (possibleMovesCount / 4) * (j + 1); i++){
-  //       mtrx.dot(figurePossibleMoves.get(i)->value / 8, figurePossibleMoves.get(i)->value % 8);
-  //       mtrx.dot(figurePossibleMoves.get(i)->value / 8 - 1, figurePossibleMoves.get(i)->value % 8 - 1, 0);
-  //     }
-  //     delay(500);
-  //   }
-}
-
 
 void playGame() {
-  //ledForFigures(board);
   ledBoard();
   while (boolPlay) {
       Println(ChessEngine::evaluateMoveScore(board));
@@ -520,15 +549,65 @@ void generateActualFieldFromGerkons() {
 }
 
 void ledBoard() {
-  mtrx.clear();
-  for(int i = 0; i < 8; i++) {
-    for(int j = 0; j < 8; j++) {
-      if((gerkonActualFieldData[i * 8 + j] && board.board[i * 8 + j].whiteOwns()) || (!board.board[i * 8 + j].whiteOwns() && !board.board[i * 8 + j].empty())) {
-        mtrx.rect(i * 2, j * 2, i * 2 + 1, j * 2 + 1);
+  if(dataChanged) {
+    mtrx.clear();
+    for(int i = 0; i < 8; i++) {
+      for(int j = 0; j < 8; j++) {
+        if(gerkonActualFieldData[i * 8 + j] /*&& board.board[i * 8 + j].whiteOwns()) || (!board.board[i * 8 + j].whiteOwns() && !board.board[i * 8 + j].empty())*/) {
+          mtrx.rect(i * 2, j * 2, i * 2 + 1, j * 2 + 1);
+        }
       }
+      mtrx.update();
     }
-    mtrx.update();
+    dataChanged = false;
   }
 }
+
+void showPossibleMoves() {
+  int state = 0;
+  figurePossibleMoves = board.possibleMoves(chessMoveFrom.from);
+  int possibleMovesCount = figurePossibleMoves.size(); 
+  board.possibleMoves(chessMoveFrom.from).printList();
+  if(possibleMovesCount > 0) {  
+    for(int j = 0; j < 4; j++) {
+      for (int i = 0; i < possibleMovesCount; i++){
+        for(int k = 0; k < 8; k++) {
+          for(int l = 0; l < 8; l++) {
+            if(figurePossibleMoves.get(i)->value == k * 8 + l) {
+              mtrx.rect(k * 2, l * 2, k * 2 + 1, l * 2 + 1, 0);
+              if(state == 0) {
+                mtrx.dot(k * 2 + j, l * 2 + j);
+              }
+              else {
+                if(state == 1) {
+                  mtrx.dot(k * 2 + j - 1, l * 2 + j);
+                }
+                else {
+                  if(state == 2) {
+                    mtrx.dot(k * 2 + j - 1, l * 2 + j - 1);
+                  }
+                  else {
+                    mtrx.dot(k * 2 + 1, l * 2 + j - 3);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    mtrx.update();
+    state++;
+    delay(500);
+    }
+    state = 0;
+  }
+}
+
+
+
+
+
+
+
 
 

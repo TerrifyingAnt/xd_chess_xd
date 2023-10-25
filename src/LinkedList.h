@@ -135,14 +135,15 @@ bool LinkedList<T>::end() const
     return !initialized;
 }
 
+// method returns size of linked list
 template<typename T>
 int LinkedList<T>::size() 
 {
     int i = 0;
-    auto* result = this;
-    while(result->next == nullptr) {
+    LinkedList<T>* head = this;
+    while (head != nullptr) {
         i++;
-        result = result->next;
+        head = head->next;
     }
     return i;
 }
