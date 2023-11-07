@@ -8,7 +8,6 @@
 #include <LiChessApi.h>
 #include <AlfaZeroApi.h>
 #include <Thread.h>
-#include <vector>
 
 
 ChessBoard board;
@@ -27,7 +26,7 @@ String uid = "xd";
 
 ChessMove chessMoveFrom;
 
-LinkedList<byte> figurePossibleMoves;
+std::vector<unsigned char> figurePossibleMoves;
 
 bool dataChanged = false; // Flag to indicate if there are any changes in data
 
@@ -54,7 +53,7 @@ const int numBits = 16; // Change this to match your specific number of bits
 int buttonStates[numBits] = {1}; // Initialize all button states as not pressed (0)
 int lightningButtonStates[numBits] = {1};
 
-int GAME_TYPE = 1; // 1 - альфа зиро, 0 - личесс
+int GAME_TYPE = 0; // 1 - альфа зиро, 0 - личесс
 
 // Q7 pins
 int dataPin1 = 34;
@@ -85,10 +84,8 @@ void playGame(); // функция по началу игры
 void generateActualFieldFromGerkons(); // создание актуального поля игры
 void ledBoard(); // подсветка доски исходя из текущего состояния доски
 void shiftRegisters(); // функция получения информации с герконов
-void showPossibleMoves(); // функция показания возможных ходов (не работает пока, там ошибка по индексу (index out of bound которая))
-void startDemoGame(ChessMove* chessMovesList, int size); // функция, которая проигрывает игру по массиву ходов
-
-Thread myThread = Thread();
+void showPossibleMoves(ChessMove chessMoveFrom); // функция показания возможных ходов (не работает пока, там ошибка по индексу (index out of bound которая))
+void startDemoGame(ChessMove* chessMovesList, int size) __attribute__ ((stack_size(16384))); // функция, которая проигрывает игру по массиву ходов
 
 int userMove(ChessBoard& tempBoard)
 {
@@ -105,11 +102,11 @@ int userMove(ChessBoard& tempBoard)
     for(int i = 0; i < 8; i++) {
       for(int j = 0; j < 8; j++) {
         // первое изменение и есть место, откуда пользователь пошел
-        if(gerkonActualFieldData[i * 8 + j] != lastStateGerkonFieldData[i * 8 + j] && from == false ) {
+        if(gerkonActualFieldData[i * 8 + j] != lastStateGerkonFieldData[i * 8 + j] && from == false && lastStateGerkonFieldData[i * 8 + j] == true) {
           from = true;
           fromInt = i * 8 + j;
-          Serial.print("from: ");
-          Serial.print(from);
+          Serial.print(" from: ");
+          Serial.print(fromInt);
           Serial.println();
         }
         else {
@@ -128,13 +125,9 @@ int userMove(ChessBoard& tempBoard)
       char buffer[] = {x1, y1, '\0'};
       ChessMove bufferChessmove = ChessMove(buffer);
       chessMoveFrom = ChessMove(buffer);
-      // start showPOssibleMoves thread
-      showPossibleMovesForCurrentState = true;
-      if(myThread.shouldRun()){
-        myThread.run();
-      }
+
+      showPossibleMoves(chessMoveFrom);
       
-      //showPossibleMoves(chessMoveFrom);
     }
     else {
       char new_x1 = static_cast<char>('a' + (fromInt%8));
@@ -143,11 +136,8 @@ int userMove(ChessBoard& tempBoard)
       char new_x2 = static_cast<char>('a' + (toInt%8));
       char new_y2 = static_cast<char>('1' + (toInt/8));
 
-      //stop showPossibleMoves thread accurate
-      showPossibleMovesForCurrentState = false;
       char buffer[] = {new_x1, new_y1, ' ', new_x2, new_y2, '\0'};
       ChessMove move(buffer);
-
 
       // проверка хода на корректность
       if (tempBoard.validMove(move)) {
@@ -175,7 +165,6 @@ int userMove(ChessBoard& tempBoard)
           board.performMove(move);
 
           lastMove = move;
-          //ledForFigures(board); // подсветка доски
           // запись последнего хода
           for(int i =0; i < 8; i++) {
             for(int j = 0; j < 8; j++)
@@ -199,44 +188,42 @@ int userMove(ChessBoard& tempBoard)
 
 void computerMove(ChessBoard& tempBoard)
 {
-  // char buffer[5];
-  // bool moveWasMade = false;
-  // while(!moveWasMade){
-  //   if(GAME_TYPE == 0) {
-  //     String response = liChessApi.getCurrentGameState(uid);
-  //     int index = response.lastIndexOf("\"moves\":") + 8;
-  //     String moves = response.substring(response.indexOf("\"", index + 4) - 4, response.indexOf("\"", index + 4));
-  //     buffer[0] = moves[0];
-  //     buffer[1] = moves[1];
-  //     buffer[2] = ' ';
-  //     buffer[3] = moves[2];
-  //     buffer[4] = moves[3];
-  //     buffer[5] = '\0';
-  //   }
-  //   else {
-  //     buffer[0] = alfaZeroLastMove[0];
-  //     buffer[1] = alfaZeroLastMove[1];
-  //     buffer[2] = ' ';
-  //     buffer[3] = alfaZeroLastMove[2];
-  //     buffer[4] = alfaZeroLastMove[3];
-  //     buffer[5] = '\0';
-  //   }
-  //   ChessMove lichessMove = ChessMove(buffer);
-  //   String move1 = lichessMove.getMove();
-  //   String move2 = lastMove.getMove();
-  //   if(!move1.equals(move2)) {
-  //     tempBoard.performMove(lichessMove);
-  //     moveWasMade = true;
-  //     lastMove = lichessMove;
-  //     ledForFigures(board);
-  //     lastStateGerkonFieldData[lichessMove.from] = false;
-  //     lastStateGerkonFieldData[lichessMove.to] = true;
-  //     break;
-  //   }
-  // }
+  char buffer[5];
+  bool moveWasMade = false;
+  while(!moveWasMade){
+    if(GAME_TYPE == 0) {
+      String response = liChessApi.getCurrentGameState(uid);
+      int index = response.lastIndexOf("\"moves\":") + 8;
+      String moves = response.substring(response.indexOf("\"", index + 4) - 4, response.indexOf("\"", index + 4));
+      buffer[0] = moves[0];
+      buffer[1] = moves[1];
+      buffer[2] = ' ';
+      buffer[3] = moves[2];
+      buffer[4] = moves[3];
+      buffer[5] = '\0';
+    }
+    else {
+      buffer[0] = alfaZeroLastMove[0];
+      buffer[1] = alfaZeroLastMove[1];
+      buffer[2] = ' ';
+      buffer[3] = alfaZeroLastMove[2];
+      buffer[4] = alfaZeroLastMove[3];
+      buffer[5] = '\0';
+    }
+    ChessMove lichessMove = ChessMove(buffer);
+    String move1 = lichessMove.getMove();
+    String move2 = lastMove.getMove();
+    if(!move1.equals(move2)) {
+      tempBoard.performMove(lichessMove);
+      moveWasMade = true;
+      lastMove = lichessMove;
+      ledForFigures(board);
+      lastStateGerkonFieldData[lichessMove.from] = false;
+      lastStateGerkonFieldData[lichessMove.to] = true;
+      break;
+    }
+  }
   //liChessApi.cancelGameWithBot(uid);
-  ///moveWasMade = true;
-
 }
 
 void shiftRegisters() {
@@ -357,7 +344,7 @@ void shiftRegisters() {
   //   }
   // }
   generateActualFieldFromGerkons();   
-  delay(500);
+  delay(100);
 }
 
 
@@ -411,17 +398,12 @@ void setup() {
     lastStateGerkonFieldData[i] = gerkonActualFieldData[i];
   }
 
-  myThread.onRun(showPossibleMoves);
-
-  ledBoard();
-
+  ledForFigures(board);
 }
 
 
 void loop() {
   playGame();
-  //shiftRegisters();
-  //ledBoard();
 }
 
 void ledForFigures(ChessBoard& tempBoard) {
@@ -445,7 +427,6 @@ void playGame() {
 
       if (!board.whitePlays) {
           computerMove(board);
-          board.whitePlays = !board.whitePlays;
       }
 
       int status;
@@ -564,7 +545,7 @@ void ledBoard() {
     mtrx.clear();
     for(int i = 0; i < 8; i++) {
       for(int j = 0; j < 8; j++) {
-        if(gerkonActualFieldData[i * 8 + j] /*&& board.board[i * 8 + j].whiteOwns() || (!board.board[i * 8 + j].whiteOwns() && !board.board[i * 8 + j].empty())*/) {
+        if(gerkonActualFieldData[i * 8 + j] && board.board[i * 8 + j].whiteOwns() || (!board.board[i * 8 + j].whiteOwns() && !board.board[i * 8 + j].empty())) {
           mtrx.rect(i * 2, j * 2, i * 2 + 1, j * 2 + 1);
         }
       }
@@ -574,18 +555,20 @@ void ledBoard() {
   }
 }
 
-void showPossibleMoves() {
+void showPossibleMoves(ChessMove chessMoveFrom) {
   int state = 0;
-  if(showPossibleMovesForCurrentState) {
-    figurePossibleMoves = board.possibleMoves(chessMoveFrom.from);
+  if(chessMoveFrom.from != 0){
+    figurePossibleMoves = board.possibleMoves(chessMoveFrom.from).toList();
     int possibleMovesCount = figurePossibleMoves.size(); 
-    board.possibleMoves(chessMoveFrom.from).printList();
+    //Serial.println(figurePossibleMoves);
     if(possibleMovesCount > 0) {  
       for(int j = 0; j < 4; j++) {
         for (int i = 0; i < possibleMovesCount; i++){
+          Serial.println(figurePossibleMoves[i]);
           for(int k = 0; k < 8; k++) {
             for(int l = 0; l < 8; l++) {
-              if(figurePossibleMoves.get(i)->value == k * 8 + l && k * 8 + l < 256) {
+            //assert(figurePossibleMoves.get(i) != nullptr);
+              if(figurePossibleMoves[i] == k * 8 + l) {
                 mtrx.rect(k * 2, l * 2, k * 2 + 1, l * 2 + 1, 0);
                 if(state == 0) {
                   mtrx.dot(k * 2 + j, l * 2 + j);
@@ -607,15 +590,14 @@ void showPossibleMoves() {
             }
           }
         }
-      mtrx.update();
-      state++;
-      delay(500);
+        mtrx.update();
+        state++;
+        delay(500);
       }
-      state = 0;
     }
+    state = 0;
   }
 }
-
 
 
 

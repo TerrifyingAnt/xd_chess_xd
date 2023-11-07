@@ -6,6 +6,7 @@
 #pragma once
 
 #include "logger.h"
+#include <vector>
 
 template <typename T>
 class LinkedList
@@ -33,6 +34,8 @@ public:
     bool end() const;
 
     int size();
+
+    std::vector<T> toList();
 
 private:
     bool initialized;
@@ -76,14 +79,15 @@ void LinkedList<T>::push(const T& item)
 template<typename T>
 LinkedList<T>* LinkedList<T>::get(int i)
 {
-    auto* result = this;
-    for(; i > 0; i--) {
-        if (result->next == nullptr) return nullptr;
-        result = result->next;
+    LinkedList<T>* current = this;
+    while (i > 0 && current != nullptr) {
+        current = current->next;
+        i--;
     }
 
-    return result;
+    return i == 0 ? current : nullptr;
 }
+
 
 template<typename T>
 void LinkedList<T>::swap(int a, int b)
@@ -135,15 +139,26 @@ bool LinkedList<T>::end() const
     return !initialized;
 }
 
-// method returns size of linked list
 template<typename T>
 int LinkedList<T>::size() 
 {
     int i = 0;
-    LinkedList<T>* head = this;
-    while (head != nullptr) {
+    const LinkedList<T>* current = this;  // Use 'const' for safety
+    while (current != nullptr) {
         i++;
-        head = head->next;
+        current = current->next;
     }
     return i;
 }
+
+template<typename T>
+std::vector<T> LinkedList<T>::toList() {
+    std::vector<T> list;
+    LinkedList<T>* current = this;
+    while(current != nullptr && current->initialized) {
+        list.push_back(current->value);
+        current = current->next;
+    }
+    return list;
+}
+
