@@ -30,6 +30,10 @@ public:
 
     bool whitePlays = true;
 
+    bool kingMoved = false;
+    bool kingRookMoved = false;
+    bool queenRookMoved = false;
+
     void printBoard() const;
     void performMove(const ChessMove& move);
     LinkedList<byte> possibleMoves(byte index) const;

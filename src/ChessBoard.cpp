@@ -62,6 +62,22 @@ void ChessBoard::printBoard() const
 
 void ChessBoard::performMove(const ChessMove& move)
 {
+    // castling code (move rooks for white player only)
+    if(board[move.from].key == 'k' && move.from == 4 && move.to == 2) {
+        board[3] = board[0];
+        board[0] = ' ';
+        queenRookMoved = true;
+    }
+    else {
+        if(board[move.from].key == 'k' && move.from == 4 && move.to == 6) {
+            board[5] = board[7];
+            board[7] = ' ';
+            kingRookMoved = true;
+        }
+    }
+    if(board[move.from].key == 'k') {
+        kingMoved = true;
+    }
     board[move.to] = board[move.from];
     board[move.from] = ' ';
     this->whitePlays = !this->whitePlays;
@@ -151,6 +167,25 @@ LinkedList<byte> ChessBoard::possibleMoves(byte index, bool whitePlays) const
         }
 
         return result;
+    }
+
+    if (kind == 'k') {
+        if(whitePlays){
+            if(this->board[4].key == 'k' && this->board[3].empty() && this->board[2].empty() && this->board[1].empty() && this->board[0].key == 'r' && queenRookMoved == false && kingMoved == false) {
+                result.push(2);
+            }
+            if(this->board[4].key == 'k' && this->board[5].empty() && this->board[6].empty() && this->board[7].key == 'r' && kingRookMoved == false && kingMoved == false) {
+                result.push(6);
+            }
+        }
+        else {
+            if(this->board[60].key == 'k' && this->board[59].empty() && this->board[58].empty() && this->board[57].empty() && this->board[56].key == 'r') {
+                result.push(58);
+            }
+            if(this->board[60].key == 'k' && this->board[61].empty() && this->board[62].empty() && this->board[63].key == 'r') {
+                result.push(62);
+            }
+        }
     }
 
     bool up, down, left, right;
