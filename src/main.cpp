@@ -8,7 +8,22 @@
 #include <LiChessApi.h>
 #include <AlfaZeroApi.h>
 #include <Thread.h>
+#include <Adafruit_NeoPixel.h>
+#include <StatesEnum.h>
+// #include <ThreadController.h>
+// #include <Scheduler.h>
 
+// Thread additionLedThread;
+// Thread playThread;
+
+#if CONFIG_FREERTOS_UNICORE
+#define ARDUINO_RUNNING_CORE 0
+#else
+#define ARDUINO_RUNNING_CORE 1
+#endif
+
+
+volatile StatesEnum currentGameState = StatesEnum::IDLE;
 
 ChessBoard board; // игровая доска
 bool whitePlays; // играем за белых
@@ -63,7 +78,12 @@ int clockPin = 26;
 // PL пин 1
 int load = 27;
 
+// D5 led
+int PIN = 5;
+
 bool boolPlay = true;
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(11, PIN, NEO_RGB + NEO_KHZ800);
 
 void startGamePlayerComputer(int depth, int maxSteps); // не используется
 int userMove(ChessBoard& board); // функция хода пользователя
@@ -76,6 +96,21 @@ void shiftRegisters(); // функция получения информации
 void showPossibleMoves(ChessMove chessMoveFrom); // функция показания возможных ходов (не работает пока, там ошибка по индексу (index out of bound которая))
 void startDemoGame(ChessMove* chessMovesList, int size); // функция, которая проигрывает игру по массиву ходов
 void calibrate(); // функция калибровки доски
+void rainbowCycle(uint8_t wait); // функция подсветки ленты
+uint32_t Wheel(byte WheelPos); // функция для подсветки ленты
+void colorWipe(uint32_t c, uint8_t wait);
+void theaterChase(uint32_t c, uint8_t wait);
+int generatePixelNumber(int pixel, int offset);
+void ledRetroWave(); // подсветка крутиться 5 цветов ретровейвных
+void ledBreathIdle(); // подсветка дыхание в режиме ожидания
+void userBreathIdle();
+void botBreathIdle();
+void gameStarted(); // уведомление о начале игры
+void loop1(void * unused);
+
+StatesEnum valState(){
+  return currentGameState;
+}
 
 // функция хода пользователя
 int userMove(ChessBoard& tempBoard)
@@ -109,6 +144,9 @@ int userMove(ChessBoard& tempBoard)
     
     // если пользователь поднял фигуру и не поставил ее
     if(toInt == -1) {
+      if(from) {
+        currentGameState = StatesEnum::USER_WAIT_MOVE;
+      }
       char x1 = static_cast<char>('a' + (fromInt%8));
       char y1 = static_cast<char>('1' + (fromInt/8));
       char buffer[] = {x1, y1, '\0'};
@@ -131,6 +169,7 @@ int userMove(ChessBoard& tempBoard)
 
       // проверка хода на корректность
       if (tempBoard.validMove(move)) {
+          currentGameState = StatesEnum::USER_MOVE;
           Print("Moving ");
           char name[16];
           tempBoard.board[move.from].name(name);
@@ -144,14 +183,6 @@ int userMove(ChessBoard& tempBoard)
             Println(name);
           }
 
-          Println("");
-          stringMove = move.getMove();
-          if(GAME_TYPE == 0)  {
-            liChessApi.makeMove(uid, stringMove);
-          }
-          else {
-            alfaZeroLastMove = alfaZeroApi.makeMove(uid, stringMove);
-          }
           board.performMove(move);
 
           // запись последнего хода
@@ -182,6 +213,17 @@ int userMove(ChessBoard& tempBoard)
             }
           }
 
+          ledBoard();
+
+          Println("");
+          stringMove = move.getMove();
+          if(GAME_TYPE == 0)  {
+            liChessApi.makeMove(uid, stringMove);
+          }
+          else {
+            alfaZeroLastMove = alfaZeroApi.makeMove(uid, stringMove);
+          }
+
           Println(stringMove);
           stringMove = "";
           return 1;
@@ -197,6 +239,7 @@ void computerMove(ChessBoard& tempBoard)
   char buffer[5];
   bool moveWasMade = false;
   while(!moveWasMade){
+    currentGameState = StatesEnum::BOT_MOVE;
     if(GAME_TYPE == 0) {
       String response = liChessApi.getCurrentGameState(uid);
       int index = response.lastIndexOf("\"moves\":") + 8;
@@ -357,6 +400,8 @@ void setup() {
 
   mtrx.clear();
 
+  currentGameState = StatesEnum::IDLE;
+
   // Setup 74HC165 connections
   pinMode(dataPin1, INPUT);
   pinMode(dataPin2, INPUT);
@@ -390,11 +435,33 @@ void setup() {
   }
   Serial.print("GAME_ID: " + uid);
 
+  // // End of trinket special code
+
+  strip.begin();
+  strip.setBrightness(50);
+  strip.show(); // Initialize all pixels to 'off'
+
   ledForFigures(board);
+
+  // additionLedThread.onRun(startAdditionLed);
+  // playThread.onRun(playGame);
+  // Scheduler.startLoop(startAdditionLed);
+  xTaskCreatePinnedToCore(loop1, "loop1", 4096, NULL, 1, NULL, ARDUINO_RUNNING_CORE);
+  currentGameState = StatesEnum::GAME_STARTED;
+  
 }
 
 
 void loop() {
+  //timer.run();
+  // if(additionLedThread.shouldRun()) {
+  //   additionLedThread.run();
+  // }
+  // if(playThread.shouldRun()) {
+  //   playThread.run();
+  // }
+  //ledRetroWave();
+  //additionLedThread.run();
   playGame();
 }
 
@@ -412,6 +479,7 @@ void ledForFigures(ChessBoard& tempBoard) {
 
 // основная функция игры
 void playGame() {
+  currentGameState = StatesEnum::IDLE;
   ledBoard();
   while (boolPlay) {
 
@@ -616,16 +684,6 @@ void calibrate() {
         count++;
       }
     }
-    // for(int i = 0; i < 16; i++) {
-    //   if(gerkonActualFieldData[i] == false) {
-    //     count++;
-    //   }
-    // }
-    // for(int i = 48; i < 64; i++) {
-    //   if(gerkonActualFieldData[i] == false) {
-    //     count++;
-    //   }
-    // }
     
     if(count >= 30) {
       isCalibrated = true;
@@ -636,6 +694,159 @@ void calibrate() {
     }
   }
 }
+
+int generatePixelNumber(int pixel, int offset) {
+  if(pixel - offset < 1) {
+    return 11 - offset + pixel - 1;
+  }
+  else {
+    return pixel - offset;
+  }
+}
+
+void ledRetroWave() {
+  for(int i = 1; i < 11; i++){
+      //  light blue
+      strip.setPixelColor(generatePixelNumber(i, 1), strip.Color(230, 226, 45));
+      strip.setPixelColor(generatePixelNumber(i, 2), strip.Color(58, 57, 11));
+
+      // blue
+      strip.setPixelColor(generatePixelNumber(i, 3), strip.Color(255, 0, 0));
+      strip.setPixelColor(generatePixelNumber(i, 4), strip.Color(60, 0, 0));
+      
+      // purple light
+      strip.setPixelColor(generatePixelNumber(i, 5), strip.Color(157, 1, 246));
+      strip.setPixelColor(generatePixelNumber(i, 6), strip.Color(40, 0, 62));
+
+      // purple middle
+      strip.setPixelColor(generatePixelNumber(i, 7), strip.Color(120, 0, 212));
+      strip.setPixelColor(generatePixelNumber(i, 8), strip.Color(30, 0, 53));
+
+      // purple dark
+      strip.setPixelColor(generatePixelNumber(i, 9), strip.Color(204, 0, 151));
+      //strip.setPixelColor(generatePixelNumber(i, 10), strip.Color(102, 0, 80));
+      strip.setPixelColor(generatePixelNumber(i, 10), strip.Color(51, 0, 40));
+
+      strip.show();
+      delay(250);
+    }
+}
+
+void ledBreathIdle() {
+  for(int i = 0; i < 11; i++) {
+    // purple color for all pixels
+    strip.setPixelColor(i, strip.Color(204, 151, 0));
+  }
+  for(int i = 240; i > 50; i--) {
+    strip.setBrightness(i);
+    strip.show();
+    delay(10);
+  }
+  for(int i = 0; i < 11; i++) {
+    // purple color for all pixels
+    strip.setPixelColor(i, strip.Color(204, 151, 0));
+  }
+  for(int k = 51; k < 239; k++) {
+    strip.setBrightness(k);
+    strip.show();
+    delay(10);
+  }
+}
+
+void gameStarted() {
+  for(int i = 0; i < 11; i++) {
+    // purple color for all pixels
+    strip.setPixelColor(i, strip.Color(0, 0, 255));
+  }
+  strip.setBrightness(255);
+  strip.show();
+  delay(100);
+  strip.setBrightness(50);
+  strip.show();
+  delay(100);
+  strip.setBrightness(255);
+  strip.show();
+  delay(100);
+  strip.setBrightness(50);
+  strip.show();
+  delay(100);
+}
+
+void loop1(void * unused) {
+  // static StatesEnum currentLastGameState = valState();
+  while(1){
+  switch(currentGameState){
+  case StatesEnum::IDLE: {
+    Serial.println("IDLE");
+    ledBreathIdle();
+    break;
+  }
+  case StatesEnum::GAME_STARTED: {
+    Serial.println("GAME_STARTED");
+    gameStarted();
+    break;
+  }
+  case StatesEnum::BOT_MOVE: {
+    Serial.println("BOT_MOVE");
+    botBreathIdle();
+    break;
+  }
+  case StatesEnum::USER_MOVE: {
+    Serial.println("USER_MOVE");
+    userBreathIdle();
+    break;
+  }
+  case StatesEnum::USER_WAIT_MOVE: {
+    Serial.println("USER_WAIT_MOVE");
+    ledRetroWave();
+    break;
+  }}
+  }
+}
+
+void userBreathIdle() {
+  for(int i = 0; i < 11; i++) {
+    // purple color for all pixels
+    strip.setPixelColor(i, strip.Color(0, 0, 240));
+  }
+  for(int i = 240; i > 50; i--) {
+    strip.setBrightness(i);
+    strip.show();
+    delay(10);
+  }
+  for(int i = 0; i < 11; i++) {
+    // purple color for all pixels
+    strip.setPixelColor(i, strip.Color(0, 0, 240));
+  }
+  for(int k = 51; k < 239; k++) {
+    strip.setBrightness(k);
+    strip.show();
+    delay(10);
+  }
+}
+
+void botBreathIdle() {
+  for(int i = 0; i < 11; i++) {
+    // purple color for all pixels
+    strip.setPixelColor(i, strip.Color(0, 240, 0));
+  }
+  for(int i = 240; i > 50; i--) {
+    strip.setBrightness(i);
+    strip.show();
+    delay(10);
+  }
+  for(int i = 0; i < 11; i++) {
+    // purple color for all pixels
+    strip.setPixelColor(i, strip.Color(0, 240, 0));
+  }
+  for(int k = 51; k < 239; k++) {
+    strip.setBrightness(k);
+    strip.show();
+    delay(10);
+  }
+}
+
+
 
 
 
