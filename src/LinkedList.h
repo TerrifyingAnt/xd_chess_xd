@@ -35,6 +35,8 @@ public:
 
     int size();
 
+    void clear();
+
     std::vector<T> toList();
 
 private:
@@ -45,21 +47,17 @@ template<typename T>
 LinkedList<T>::LinkedList() : next(nullptr), initialized(false) {}
 
 template<typename T>
-LinkedList<T>::LinkedList(T item) : value(item), next(nullptr), initialized(true)
-{}
+LinkedList<T>::LinkedList(T item) : value(item), next(nullptr), initialized(true) {}
 
 template<typename T>
-LinkedList<T>::~LinkedList()
-{
+LinkedList<T>::~LinkedList() {
     if (this->next != nullptr)
         delete this->next;
 }
 
 template<typename T>
-void LinkedList<T>::push(const T& item)
-{
-    if (!initialized)
-    {
+void LinkedList<T>::push(const T& item) {
+    if (!initialized) {
         this->value = item;
         initialized = true;
         return;
@@ -77,8 +75,7 @@ void LinkedList<T>::push(const T& item)
 }
 
 template<typename T>
-LinkedList<T>* LinkedList<T>::get(int i)
-{
+LinkedList<T>* LinkedList<T>::get(int i) {
     LinkedList<T>* current = this;
     while (i > 0 && current != nullptr) {
         current = current->next;
@@ -90,8 +87,7 @@ LinkedList<T>* LinkedList<T>::get(int i)
 
 
 template<typename T>
-void LinkedList<T>::swap(int a, int b)
-{
+void LinkedList<T>::swap(int a, int b) {
     auto* listA = get(a);
     auto* listB = get(b);
 
@@ -101,8 +97,7 @@ void LinkedList<T>::swap(int a, int b)
 }
 
 template<typename T>
-bool LinkedList<T>::contains(const T& item)
-{
+bool LinkedList<T>::contains(const T& item) {
     LinkedList<T>* head = this;
 
     while (head != nullptr) {
@@ -114,8 +109,7 @@ bool LinkedList<T>::contains(const T& item)
 }
 
 template<typename T>
-void LinkedList<T>::printList()
-{
+void LinkedList<T>::printList() {
     if (!initialized) {
         Println(";");
         return;
@@ -134,14 +128,12 @@ void LinkedList<T>::printList()
 }
 
 template<typename T>
-bool LinkedList<T>::end() const
-{
+bool LinkedList<T>::end() const {
     return !initialized;
 }
 
 template<typename T>
-int LinkedList<T>::size() 
-{
+int LinkedList<T>::size() {
     int i = 0;
     const LinkedList<T>* current = this;  // Use 'const' for safety
     while (current != nullptr) {
@@ -155,10 +147,22 @@ template<typename T>
 std::vector<T> LinkedList<T>::toList() {
     std::vector<T> list;
     LinkedList<T>* current = this;
-    while(current != nullptr && current->initialized) {
+    while (current != nullptr && current->initialized) {
         list.push_back(current->value);
         current = current->next;
     }
     return list;
 }
+
+template<typename T>
+void LinkedList<T>::clear() {
+  LinkedList<T>* current = this;
+  while (current != nullptr) {
+    LinkedList<T>* next = current->next;
+    delete current;
+    current = next;
+  }
+  initialized = false;
+}
+
 
