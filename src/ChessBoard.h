@@ -9,6 +9,8 @@
 #include "ChessPiece.h"
 #include "ChessMove.h"
 #include "LinkedList.h"
+#include <set>
+#include <vector>
 
 #define fieldToIndex(x, y) (x) + (y*8)
 #define indexToX(index) (index) % 8
@@ -18,14 +20,14 @@ class ChessBoard
 {
 public:
     ChessPiece board[64] = {
-            'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r',
-            'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p',
+            'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r',  // white
+            'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p',  // white
             ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
             ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
             ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
             ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
-            'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
-            'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R',
+            'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',  // black
+            'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R',  // black
     };
 
     bool whitePlays = true;
@@ -33,6 +35,8 @@ public:
     bool kingMoved = false;
     bool kingRookMoved = false;
     bool queenRookMoved = false;
+
+    std::set<byte> attackedCells[64];
 
     void printBoard() const;
     void performMove(const ChessMove& move);
@@ -42,5 +46,11 @@ public:
 
     /// Return values: 0 = game not ended; 1 = white has won; 2 = black has won
     byte gameEnded();
+
+    void createAttackedCells();
+
+    void printAttackCells();
+
+    LinkedList<byte> possibleAttacks(byte index, bool whitePlays) const;
 };
 

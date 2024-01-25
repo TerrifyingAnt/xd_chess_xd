@@ -34,10 +34,8 @@ bool ChessPiece::invalid() const
     return key == '!';
 }
 
-void ChessPiece::name(char result[14]) const
-{
-    if (invalid())
-    {
+void ChessPiece::name(char result[14]) const {
+    if (invalid()) {
         strcpy(result, "INVALID PIECE");
         return;
     }
@@ -48,8 +46,7 @@ void ChessPiece::name(char result[14]) const
         strcpy(result, "black ");
     }
 
-    switch(toLowercase(key))
-    {
+    switch (toLowercase(key)) {
         case 'p': strcpy(result+6, "pawn"); break;
         case 'n': strcpy(result+6, "knight"); break;
         case 'b': strcpy(result+6, "bishop"); break;
@@ -60,12 +57,10 @@ void ChessPiece::name(char result[14]) const
     }
 }
 
-byte ChessPiece::value() const
-{
+byte ChessPiece::value() const {
     if (invalid()) return '!';
 
-    switch (toLowercase(key))
-    {
+    switch (toLowercase(key)) {
         case 'p': return 1;
         case 'n': return 3;
         case 'b': return 3;
@@ -76,19 +71,16 @@ byte ChessPiece::value() const
     }
 }
 
-bool ChessPiece::whiteOwns() const
-{
+bool ChessPiece::whiteOwns() const {
     // Key is lowercase
     return key > 'Z';
 }
 
-bool ChessPiece::empty() const
-{
+bool ChessPiece::empty() const {
     return key == ' ';
 }
 
-char ChessPiece::kind() const
-{
+char ChessPiece::kind() const {
     if (invalid()) return '!';
 
     return toLowercase(key);
