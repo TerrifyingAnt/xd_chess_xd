@@ -10,6 +10,7 @@
 #include <Thread.h>
 #include <Adafruit_NeoPixel.h>
 #include <StatesEnum.h>
+#include <algorithm>
 // #include <ThreadController.h>
 // #include <Scheduler.h>
 
@@ -107,6 +108,7 @@ void userBreathIdle();
 void botBreathIdle();
 void gameStarted();  // уведомление о начале игры
 void loop1(void * unused);
+void showWhoMoved(ChessMove move);
 
 StatesEnum valState() {
   return currentGameState;
@@ -624,15 +626,65 @@ void showPossibleMoves(ChessMove chessMoveFrom) {
   int state = 0;
   if (chessMoveFrom.from != 0) {
     figurePossibleMoves = board.possibleMoves(chessMoveFrom.from).toList();
-      if (board.board[chessMoveFrom.from].kind() == 'k' && board.board[chessMoveFrom.from].whiteOwns()) {
-        std::vector<byte> filteredMovesForKing;
-        for (int i = 0; i < figurePossibleMoves.size(); i++) {
-            if (board.attackedCells[figurePossibleMoves[i]].empty()) {
-                filteredMovesForKing.push_back(figurePossibleMoves[i]);
-            }
+    std::vector<byte> filteredMovesForFigures;
+
+    // TODO(me) - вынести в отдельную функцию (ХОТЯ БЫ)
+    if (board.board[chessMoveFrom.from].kind() == 'k' && board.board[chessMoveFrom.from].whiteOwns()) {
+      std::vector<byte> filteredMovesForKing;
+      for (int i = 0; i < figurePossibleMoves.size(); i++) {
+          if (board.attackedCells[figurePossibleMoves[i]].empty()) {
+              filteredMovesForKing.push_back(figurePossibleMoves[i]);
+          }
+      }
+      figurePossibleMoves.clear();
+      figurePossibleMoves = filteredMovesForKing;
+    } else {
+      // ПРОВЕРКА, МОЖНО ЛИ ЗАКРЫТСЯ ДРУГОЙ ФИГУРОЙ ОТ ШАХА
+      if (!board.attackedCells[board.whiteKing].empty() 
+      && board.board[chessMoveFrom.from].kind() != 'k') {
+        if (board.attackedCells[board.whiteKing].size() == 1) {
+          byte attackingCell = *board.attackedCells[board.whiteKing].begin();
+          if (board.board[attackingCell].kind() == 'q' ||
+              board.board[attackingCell].kind() == 'b' ||
+              board.board[attackingCell].kind() == 'r') {
+                byte attackingX = indexToX(attackingCell);
+                byte attackingY = indexToY(attackingCell);
+
+                byte attackedX = indexToX(board.whiteKing);
+                byte attackedY = indexToY(board.whiteKing);
+
+                byte dx = attackingX - attackedX;
+                byte dy = attackingY - attackedY;
+
+                // идем в цикле от атакующей фигуры до атакованной
+                // если в списке есть клетка, на которую можно сходить, то добавляем
+                // параллельно к x и у ПРИБАВЛЯЕМ ЗНАЧЕНИЯ dx, dy
+                std::vector<byte> ray;
+                byte currentCellInRay = attackingCell;
+                while (currentCellInRay < board.whiteKing) {
+                  ray.push_back(currentCellInRay);
+                  byte newX = indexToX(currentCellInRay) + dx;
+                  byte newY = indexToY(currentCellInRay) + dy;
+                  currentCellInRay = fieldToIndex(newX, newY);
+                }
+
+                for (int i = 0; i < figurePossibleMoves.size(); i++) {
+                  if (std::find(ray.begin(), ray.end(), figurePossibleMoves[i]) != ray.end()) {
+                    filteredMovesForFigures.push_back(*std::find(ray.begin(), ray.end(), figurePossibleMoves[i]));
+                  }
+                }
+              } else {
+                if (std::find(figurePossibleMoves.begin(), figurePossibleMoves.end(), attackingCell) != figurePossibleMoves.end()) {
+                  byte availableMoveToEatFigure = *std::find(figurePossibleMoves.begin(), figurePossibleMoves.end(), attackingCell);
+                    filteredMovesForFigures.push_back(availableMoveToEatFigure);
+                }
+              }
         }
-        figurePossibleMoves = filteredMovesForKing;
+        figurePossibleMoves.clear();
+        figurePossibleMoves = filteredMovesForFigures;
+      }
     }
+
     int possibleMovesCount = figurePossibleMoves.size();
     if (possibleMovesCount > 0) {
       for (int j = 0; j < 4; j++) {
@@ -844,8 +896,29 @@ void botBreathIdle() {
   }
 }
 
-
-
+void showWhoMoved(ChessMove move) {
+  bool f = true;
+  while (f) {
+      shiftRegisters();
+      f = false;
+      for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+          if (gerkonActualFieldData[i * 8 + j] != lastStateGerkonFieldData[i * 8 + j]) {
+            f = true;
+          }
+        }
+      }
+        // ledBoard();
+      mtrx.rect(move.from * 4, move.from * 4 + 1, move.from * 4 + 2, move.from * 4 + 3, 0);
+      delay(100);
+      mtrx.rect(move.to * 4, move.to * 4 + 1, move.to * 4 + 2, move.to * 4 + 3, 1);
+      delay(100);
+      mtrx.rect(move.to * 4, move.to * 4 + 1, move.to * 4 + 2, move.to * 4 + 3, 0);
+      delay(100);
+      mtrx.rect(move.from * 4, move.from * 4 + 1, move.from * 4 + 2, move.from * 4 + 3, 1);
+      delay(100);
+  }
+}
 
 
 

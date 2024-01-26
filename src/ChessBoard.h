@@ -36,10 +36,13 @@ public:
     bool kingRookMoved = false;
     bool queenRookMoved = false;
 
+    byte whiteKing = 4;
+    byte blackKing = 60;
+
     std::set<byte> attackedCells[64];
 
     void printBoard() const;
-    void performMove(const ChessMove& move);
+    void performMove(ChessMove move);
     LinkedList<byte> possibleMoves(byte index) const;
     LinkedList<byte> possibleMoves(byte index, bool whitePlays) const;
     bool validMove(const ChessMove& move) const;

@@ -58,7 +58,7 @@ void ChessBoard::printBoard() const {
     Println("");
 }
 
-void ChessBoard::performMove(const ChessMove& move) {
+void ChessBoard::performMove(ChessMove move) {
     // castling code (move rooks for white player only)
     if (board[move.from].key == 'k' && move.from == 4 && move.to == 2) {
         board[3] = board[0];
@@ -75,21 +75,69 @@ void ChessBoard::performMove(const ChessMove& move) {
         kingMoved = true;
     }
     if (!whitePlays) {
+        Serial.println("Попытка сделать ход");
         LinkedList<byte> temp = possibleAttacks(move.from, false);  // мб переделать, понять как работает
         for (int i = 0; i < temp.size(); i++) {
             attackedCells[temp.get(i)->value].erase(move.from);
         }
+        // проверка, атакована ли данная клетка кем-то
+        if (!attackedCells[move.from].empty()) {
+            Serial.println("Попытка клеток с атаками");
+            // список клеток, которые атакуют ту, с которой был сделан ход
+            std::set<byte> currentCell = attackedCells[move.from];
+            for (std::set<byte>::iterator i = currentCell.begin(); i != currentCell.end(); i++) {
+                byte currentAttackCell = *i;
+                if (board[currentAttackCell].kind() == 'b' ||
+                    board[currentAttackCell].kind() == 'k' ||
+                    board[currentAttackCell].kind() == 'q' ||
+                    board[currentAttackCell].kind() == 'r') {
+                    LinkedList<byte> tempAttackMoves = possibleAttacks(currentAttackCell, false);
+                    for (int j = 0; j < tempAttackMoves.size(); j++) {
+                        attackedCells[tempAttackMoves.get(j)->value].erase(currentAttackCell);
+                    }
+                }
+            }
+        }
     }
+    Serial.println("Попытка обновить белого короля");
+    if (whiteKing == move.from) {
+        Serial.println("trying to update white king coords");
+        whiteKing = move.to;
+    } else {
+        Serial.println("Попытка обновить черного короля");
+        if (blackKing == move.from) {
+            Serial.println("trying to update black king coords");
+            blackKing = move.to;
+        }
+    }
+    Serial.println("Попытка сделать ход");
     board[move.to] = board[move.from];
     board[move.from] = ' ';
     if (!whitePlays) {
-        LinkedList<byte> temp = possibleAttacks(move.to, false);  // в случае, если он считает фигуру белой, то все супер
+        Serial.println("Попытка обновить атакованные фигуры");
+        // в случае, если он считает фигуру белой, то все супер
+        LinkedList<byte> temp = possibleAttacks(move.to, false);
         for (int i = 0; i < temp.size(); i++) {
+            Serial.printf("Обновление атакующей клетки #%d \n", temp.get(i)->value);
             attackedCells[temp.get(i)->value].insert(move.to);
         }
+        Serial.printf("Попытка обновить атакованные фигуры xd \n");
+        if (!attackedCells[move.from].empty()) {
+            Serial.printf("Реально зашли");
+            std::set<byte> currentCell = attackedCells[move.from];
+            for (std::set<byte>::iterator i = currentCell.begin(); i != currentCell.end(); i++) {
+                byte currentAttackCell = *i;
+                if (board[currentAttackCell].kind() != 'p' && board[currentAttackCell].kind() != 'n') {
+                    LinkedList<byte> tempAttackMoves = possibleAttacks(currentAttackCell, false);
+                    for (int j = 0; j < tempAttackMoves.size(); j++) {
+                        Serial.printf("Попытка обновить атакованные фигуры %d \n", currentAttackCell);
+                        attackedCells[tempAttackMoves.get(j)->value].insert(currentAttackCell);
+                    }
+                }
+            }
+        }
     }
-    printAttackCells();
-    this->whitePlays = !this->whitePlays;
+    whitePlays = !whitePlays;
 }
 
 LinkedList<byte> ChessBoard::possibleMoves(byte index, bool whitePlays) const {
@@ -471,6 +519,11 @@ LinkedList<byte> ChessBoard::possibleAttacks(byte index, bool whitePlays) const 
         if (sw)
             if (kind == 'b' || kind == 'q' || (kind == 'k' && i == 1)) sw = checkPush(-i, -i);
     }
-
-    return result;
+    LinkedList<byte> newResult;
+    for (int i = 0; i < result.size(); i++) {
+        if (result.get(i)->value < 64 || result.get(i) >= 0) {
+            newResult.push(result.get(i)->value);
+        }
+    }
+    return newResult;
 }
